@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import '../css/Filters.css';
 import { Colors } from '../types/Colors';
 import Multiselect from 'multiselect-react-dropdown';
@@ -6,41 +6,65 @@ import { ColorMultiselect } from '../types/ColorMultiselect';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { Speed } from '../types/Speed';
 import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { DateCriteria } from '../types/DateCriteria';
+
 
 function Filters() {
 
-    const [searchParams, setSearchParams] = useSearchParams();
-     const [endDate, setEndDate] = useState(new Date());
-    const [startDate, setStartDate] = useState(new Date());
+    const [, setSearchParams] = useSearchParams();
+    const [startDate, setStartDate] = useState<Date | undefined>(undefined);
     const location = useLocation();
     const [selectedColors, setSelectedColors] = useState<string[]>([]);
     const [selectedColorsObject, setSelectedColorsObject] = useState<
         ColorMultiselect[]
     >([]);
-     const [speed, setSpeed] = useState<number>(50);
+     const [speed, setSpeed] = useState<number | undefined>(undefined);
      const [allColors, ] = useState<ColorMultiselect[]>(
          Object.keys(Colors).map((color) => ({
              name: color,
              id: color.toLowerCase(), 
          })),
     );
-    const [speedCriteria,setSpeedCriteria] = useState<string>(Speed.LESS);
-    
+    const [speedCriteria, setSpeedCriteria] = useState<string>(Speed.LESS);
+    const [dateCriteria, setDateCriteria] = useState<string>(DateCriteria.AFTER);
+    const datePickerRef = useRef(null);
+    const [hasPulseLaser, setHasPulseLaser] = useState<boolean>(false);
+    const multiselectRef = useRef<Multiselect | null>(null);
+
     useEffect(() => {
-         const searchParams = new URLSearchParams(location.search);
+        const searchParams = new URLSearchParams(location.search);
         const colorsFromURL = searchParams.getAll('colors');
         const speedFromURL = searchParams.get('speed');
+        const pulseLaserFromURL = searchParams.get('pulse-laser');
         const speedCriteriaFromURL = searchParams.get(
             'speed-criteria',
         ) as keyof typeof Speed;
+         const dateFromURL = searchParams.get('date');
+         const dateCriteriaFromURL = searchParams.get(
+             'date-criteria',
+         ) as keyof typeof DateCriteria;
+        console.log(speedCriteriaFromURL);
        if (speedFromURL && !isNaN(parseInt(speedFromURL, 10))) {
            setSpeed(parseInt(speedFromURL, 10));
-       }
-        if (
-            speedCriteriaFromURL &&
-            Object.values(Speed).includes(speedCriteriaFromURL)
-        ) {
-            setSpeedCriteria(speedCriteriaFromURL);
+            if (
+                speedCriteriaFromURL &&
+                Object.values(Speed).includes(speedCriteriaFromURL)
+            ) {
+                setSpeedCriteria(speedCriteriaFromURL);
+            }
+        }
+          if (dateFromURL) {
+              setStartDate(new Date(dateFromURL));
+              if (
+                  dateCriteriaFromURL
+              ) {
+                  setDateCriteria(dateCriteriaFromURL);
+              }
+        }
+        if (pulseLaserFromURL !== null) {
+            const hasPulseLaserValue = pulseLaserFromURL === 'true';
+            setHasPulseLaser(hasPulseLaserValue);
         }
         setSelectedColors(colorsFromURL);
         const selected =colorsFromURL.map((color) => ({
@@ -53,17 +77,24 @@ function Filters() {
 
     useEffect(() => {
         const queryParams = new URLSearchParams();
-        if (speed) {
+        if (speed && speed >= 50 && speed <= 200) {
             queryParams.set('speed', speed.toString());
             if (speedCriteria) {
                 queryParams.set('speed-criteria', speedCriteria);
             }
         }
+        if (startDate) {
+            queryParams.set('date', startDate.toString());
+            if (dateCriteria) {
+                queryParams.set('date-criteria', dateCriteria);
+            }
+        }
         selectedColors.forEach((color) => {
             queryParams.append('colors', color);
         });
+         queryParams.set('pulse-laser', hasPulseLaser.toString());
         setSearchParams(queryParams);
-    }, [speed, speedCriteria, selectedColors]);
+    }, [speed, speedCriteria, selectedColors,dateCriteria,startDate,hasPulseLaser]);
 
      const onSelect = (
          selectedList: ColorMultiselect[],
@@ -88,9 +119,19 @@ function Filters() {
         const newSpeed = parseInt(event.target.value, 10); 
         setSpeed(newSpeed);
     };
-      const handleEndDateChange = (date: any) => {
-          setStartDate(date);
-      };
+
+    const resetFilters = () => {
+         setStartDate(undefined);
+         setSelectedColors([]);
+         setSelectedColorsObject([]);
+         setSpeed(undefined);
+         setSpeedCriteria(Speed.LESS);
+         setDateCriteria(DateCriteria.AFTER);
+        setHasPulseLaser(false);
+        if (multiselectRef.current) {
+            multiselectRef.current.resetSelectedValues();
+        }
+     };
 
     return (
         <div className="filters">
@@ -101,6 +142,7 @@ function Filters() {
                 <div className="filter-element">
                     <label>Colors</label>
                     <Multiselect
+                        ref={multiselectRef}
                         options={allColors}
                         onSelect={onSelect}
                         selectedValues={selectedColorsObject}
@@ -111,6 +153,7 @@ function Filters() {
                 <div className="filter-element">
                     <label>Maximum Speed:</label>
                     <select
+                        value={speedCriteria}
                         onChange={(event) =>
                             setSpeedCriteria(event.target.value)
                         }
@@ -129,12 +172,48 @@ function Filters() {
                 </div>
                 <div className="filter-element">
                     <label>Date of Manufacture</label>
-                    <div>
-                       <DatePicker selected={startDate} onChange={(date) => setStartDate(date!)} />
-                    </div>
+                    <select
+                        value={dateCriteria}
+                        onChange={(event) =>
+                            setDateCriteria(event.target.value)
+                        }
+                    >
+                        {Object.entries(DateCriteria).map(
+                            ([key, value], index) => (
+                                <option key={index} value={key}>
+                                    {value}
+                                </option>
+                            ),
+                        )}
+                    </select>
+                    <DatePicker
+                        ref={datePickerRef}
+                        selected={startDate}
+                        onChange={(date) => setStartDate(date!)}
+                        minDate={new Date(1980, 0, 1)}
+                        maxDate={new Date(2020, 11, 31)}
+                        showYearDropdown
+                        scrollableYearDropdown
+                    />
+                </div>
+                <div className="filter-element">
+                    <label>Pulse-Laser:</label>
+                    <select
+                        value={hasPulseLaser.toString()}
+                        onChange={(event) =>
+                            setHasPulseLaser(event.target.value === 'true')
+                        }
+                    >
+                        <option value="false">No</option>
+                        <option value="true">Yes</option>
+                    </select>
                 </div>
             </div>
-            <div></div>
+            <div>
+                <button className="reset" onClick={resetFilters}>
+                    Reset filter
+                </button>
+            </div>
         </div>
     );
 }
