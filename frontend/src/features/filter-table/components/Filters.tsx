@@ -12,126 +12,138 @@ import { DateCriteria } from '../types/DateCriteria';
 
 function Filters() {
 
+    // Destructure necessary hooks and functions
     const [, setSearchParams] = useSearchParams();
-    const [startDate, setStartDate] = useState<Date | undefined>(undefined);
     const location = useLocation();
+
+    // State declarations with initial values
+    const [startDate, setStartDate] = useState<Date | undefined>(undefined);
     const [selectedColors, setSelectedColors] = useState<string[]>([]);
     const [selectedColorsObject, setSelectedColorsObject] = useState<
         ColorMultiselect[]
     >([]);
-     const [speed, setSpeed] = useState<number | undefined>(undefined);
-     const [allColors, ] = useState<ColorMultiselect[]>(
-         Object.keys(Colors).map((color) => ({
-             name: color,
-             id: color.toLowerCase(), 
-         })),
-    );
+    const [speed, setSpeed] = useState<number | undefined>(undefined);
     const [speedCriteria, setSpeedCriteria] = useState<string>(Speed.LESS);
-    const [dateCriteria, setDateCriteria] = useState<string>(DateCriteria.AFTER);
-    const datePickerRef = useRef(null);
+    const [dateCriteria, setDateCriteria] = useState<string>(
+        DateCriteria.AFTER,
+    );
     const [hasPulseLaser, setHasPulseLaser] = useState<boolean>(false);
+
+    // Reference declarations
     const multiselectRef = useRef<Multiselect | null>(null);
+
+    // Initialize allColors state with keys from Colors object
+    const [allColors] = useState<ColorMultiselect[]>(
+        Object.keys(Colors).map((color) => ({
+            name: color,
+            id: color.toLowerCase(),
+        })),
+    );
 
     useEffect(() => {
         const searchParams = new URLSearchParams(location.search);
         const colorsFromURL = searchParams.getAll('colors');
-        const speedFromURL = searchParams.get('speed');
-        const pulseLaserFromURL = searchParams.get('pulse-laser');
+        const speedFromURL = parseInt(searchParams.get('speed') || '', 10);
+        const pulseLaserFromURL = searchParams.get('pulse-laser') === 'true';
         const speedCriteriaFromURL = searchParams.get(
             'speed-criteria',
         ) as keyof typeof Speed;
-         const dateFromURL = searchParams.get('date');
-         const dateCriteriaFromURL = searchParams.get(
-             'date-criteria',
-         ) as keyof typeof DateCriteria;
-        console.log(speedCriteriaFromURL);
-       if (speedFromURL && !isNaN(parseInt(speedFromURL, 10))) {
-           setSpeed(parseInt(speedFromURL, 10));
-            if (
-                speedCriteriaFromURL &&
-                Object.values(Speed).includes(speedCriteriaFromURL)
-            ) {
+        const dateFromURL = searchParams.get('date');
+        const dateCriteriaFromURL = searchParams.get(
+            'date-criteria',
+        ) as keyof typeof DateCriteria;
+
+        if (!isNaN(speedFromURL)) {
+            setSpeed(speedFromURL);
+            if (Object.values(Speed).includes(speedCriteriaFromURL)) {
                 setSpeedCriteria(speedCriteriaFromURL);
             }
         }
-          if (dateFromURL) {
-              setStartDate(new Date(dateFromURL));
-              if (
-                  dateCriteriaFromURL
-              ) {
-                  setDateCriteria(dateCriteriaFromURL);
-              }
+
+        if (dateFromURL) {
+            setStartDate(new Date(dateFromURL));
+            if (dateCriteriaFromURL) {
+                setDateCriteria(dateCriteriaFromURL);
+            }
         }
-        if (pulseLaserFromURL !== null) {
-            const hasPulseLaserValue = pulseLaserFromURL === 'true';
-            setHasPulseLaser(hasPulseLaserValue);
-        }
+
+        setHasPulseLaser(pulseLaserFromURL);
         setSelectedColors(colorsFromURL);
-        const selected =colorsFromURL.map((color) => ({
+
+        const selectedColorsObject = colorsFromURL.map((color) => ({
             name: color,
             id: color.toLowerCase(),
         }));
-        setSelectedColorsObject(selected)
-    },[])
-    
+        setSelectedColorsObject(selectedColorsObject);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     useEffect(() => {
         const queryParams = new URLSearchParams();
+
+        // Add speed parameters
         if (speed && speed >= 50 && speed <= 200) {
             queryParams.set('speed', speed.toString());
             if (speedCriteria) {
                 queryParams.set('speed-criteria', speedCriteria);
             }
         }
+
+        // Add date parameters
         if (startDate) {
-            queryParams.set('date', startDate.toString());
+            queryParams.set('date', startDate.toISOString());
             if (dateCriteria) {
                 queryParams.set('date-criteria', dateCriteria);
             }
         }
+
+        // Add color parameters
         selectedColors.forEach((color) => {
             queryParams.append('colors', color);
         });
-         queryParams.set('pulse-laser', hasPulseLaser.toString());
+
+        // Add pulse laser parameter
+        queryParams.set('pulse-laser', hasPulseLaser.toString());
+
+        // Update search params
         setSearchParams(queryParams);
-    }, [speed, speedCriteria, selectedColors,dateCriteria,startDate,hasPulseLaser]);
+    }, [speed, speedCriteria, selectedColors, dateCriteria, startDate, hasPulseLaser, setSearchParams]);
 
-     const onSelect = (
-         selectedList: ColorMultiselect[],
-         selectedItem: ColorMultiselect,
-     ) => {
-         const updatedList = [...selectedColors, selectedItem.name];
-         setSelectedColors(updatedList);
-     };
+    const onSelect = (
+        selectedList: ColorMultiselect[],
+        selectedItem: ColorMultiselect,
+    ) => {
+        const updatedList = [...selectedColors, selectedItem.name];
+        setSelectedColors(updatedList);
+    };
 
-     const onRemove = (
-         selectedList: ColorMultiselect[],
-         removedItem: ColorMultiselect,
-     ) => {
-           const updatedList = selectedColors.filter(
-               (item) => item !== removedItem.name,
-           );
-         setSelectedColors(updatedList);
-     };
-    
+    const onRemove = (
+        selectedList: ColorMultiselect[],
+        removedItem: ColorMultiselect,
+    ) => {
+        const updatedList = selectedColors.filter(
+            (item) => item !== removedItem.name,
+        );
+        setSelectedColors(updatedList);
+    };
+
     const handleSpeedChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        console.log(event.target.value)
-        const newSpeed = parseInt(event.target.value, 10); 
+        const newSpeed = parseInt(event.target.value, 10);
         setSpeed(newSpeed);
     };
 
     const resetFilters = () => {
-         setStartDate(undefined);
-         setSelectedColors([]);
-         setSelectedColorsObject([]);
-         setSpeed(undefined);
-         setSpeedCriteria(Speed.LESS);
-         setDateCriteria(DateCriteria.AFTER);
+        setStartDate(undefined);
+        setSelectedColors([]);
+        setSelectedColorsObject([]);
+        setSpeed(undefined);
+        setSpeedCriteria(Speed.LESS);
+        setDateCriteria(DateCriteria.AFTER);
         setHasPulseLaser(false);
         if (multiselectRef.current) {
             multiselectRef.current.resetSelectedValues();
         }
-     };
+    };
 
     return (
         <div className="filters">
@@ -187,7 +199,6 @@ function Filters() {
                         )}
                     </select>
                     <DatePicker
-                        ref={datePickerRef}
                         selected={startDate}
                         onChange={(date) => setStartDate(date!)}
                         minDate={new Date(1980, 0, 1)}
